@@ -6,6 +6,10 @@ if (!defined('_PS_VERSION_')) exit;
     define('SERVER_RSCBASE', 'https://s3.amazonaws.com/pitchprint.rsc/');
 	define('SERVER_RSCCDN', 'https://dta8vnpq1ae34.cloudfront.net/');
 	
+    define('PP_MIN_CDN_PATH', 'https://dta8vnpq1ae34.cloudfront.net/app/js/pprint.js');
+    define('PP_CLASS_CDN_PATH', 'https://dta8vnpq1ae34.cloudfront.net/app/js/pp.client.js');
+    define('PPA_PS_CDN_PATH', 'https://dta8vnpq1ae34.cloudfront.net/app/js/pp.ps.a.js');
+	
     define('PITCHPRINT_API_KEY', 'pitchprint_API_KEY');
     define('PITCHPRINT_SECRET_KEY', 'pitchprint_SECRET_KEY');
 
@@ -23,7 +27,7 @@ class PitchPrint extends Module {
     public function __construct() {
       $this->name = 'pitchprint';
       $this->tab = 'front_office_features';
-      $this->version = 8.0;
+      $this->version = 8.2;
       $this->author = 'Synergic Laboratories';
       $this->need_instance = 1;
       $this->ps_versions_compliancy = array('min' => '1.5', 'max' => _PS_VERSION_);
@@ -44,25 +48,24 @@ class PitchPrint extends Module {
             return false;
             
         Db::getInstance()->execute("ALTER TABLE `" . _DB_PREFIX_ . "customized_data` CHANGE `value` `value` TEXT CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL;");
+		
+		$_pKey = Configuration::get(PITCHPRINT_API_KEY);
+		$_pSec = Configuration::get(PITCHPRINT_SECRET_KEY);
+		$_pDes = Configuration::get(PITCHPRINT_P_DESIGNS);
+		
+		if (empty($_pKey)) Configuration::updateValue(PITCHPRINT_API_KEY, '');
+		if (empty($_pSec)) Configuration::updateValue(PITCHPRINT_SECRET_KEY, '');
+		if (empty($_pDes)) Configuration::updateValue(PITCHPRINT_P_DESIGNS, serialize(array()));
       
         return $this->registerHook('displayProductButtons') &&
         $this->registerHook('displayHeader') &&
         $this->registerHook('displayAdminOrder') &&
-        $this->registerHook('displayOrderDetail') &&
         $this->registerHook('displayBackOfficeHeader') &&
         $this->registerHook('actionProductUpdate') &&
-        $this->registerHook('displayAdminProductsExtra') &&
-        Configuration::updateValue(PITCHPRINT_API_KEY, '') &&
-        Configuration::updateValue(PITCHPRINT_SECRET_KEY, '') &&
-        Configuration::updateValue(PITCHPRINT_P_DESIGNS, serialize(array()));
+        $this->registerHook('displayAdminProductsExtra');
     }
     public function uninstall() {
-        if (!parent::uninstall() || !Configuration::deleteByName(PITCHPRINT_API_KEY) || !Configuration::deleteByName(PITCHPRINT_SECRET_KEY) || !Configuration::deleteByName(PITCHPRINT_P_DESIGNS)) return false;
         return true;
-    }
-
-    public function hookDisplayOrderDetail($params) {
-        return "<script type=\"text/javascript\"> $(function(){ PPCLIENT.wrapStrings(); }); </script>";
     }
     
     public function hookDisplayProductButtons($params) {
@@ -82,6 +85,7 @@ class PitchPrint extends Module {
 				$this->context->cookie->id_cart = (int)$this->context->cart->id;
             }
             $this->context->cart->addPictureToProduct($productId, (int)$indexval, 1, $pp_values);
+
 			
         } else {
             $pp_values = $this->context->cart->getProductCustomization($productId, (int)$indexval, true);
@@ -92,17 +96,19 @@ class PitchPrint extends Module {
         $pp_mode = 'new';
         $pp_project_id = '';
 		
-        $opt_ = json_decode(rawurldecode($pp_values), true);
+        $opt_ = is_string($pp_values) ? json_decode(rawurldecode($pp_values), true) : $pp_values;
         
-        if ($opt_['type'] === 'u') {
-            $pp_previews = $opt_['previews'];
-            $pp_upload_ready = true;
-            $pp_mode = 'upload';
-        } else if ($opt_['type'] === 'p') {
-            $pp_mode = 'edit';
-            $pp_project_id =  $opt_['projectId'];
-            $pp_previews = $opt_['numPages'];
-        }
+		if (!empty($opt_)) {
+			if ($opt_['type'] === 'u') {
+				$pp_previews = $opt_['previews'];
+				$pp_upload_ready = true;
+				$pp_mode = 'upload';
+			} else if ($opt_['type'] === 'p') {
+				$pp_mode = 'edit';
+				$pp_project_id =  $opt_['projectId'];
+				$pp_previews = $opt_['numPages'];
+			}
+		}
         
         $pp_design_options = unserialize(Configuration::get(PITCHPRINT_P_DESIGNS));
         $ppa_productValues = isset($pp_design_options[$productId]) ? $pp_design_options[$productId] : '';
@@ -116,7 +122,37 @@ class PitchPrint extends Module {
 		$ppa_designValuesArray = explode(':', $ppa_productValues);
         
         if (Tools::getValue('ajax') == true) die();
-        
+		
+        if (!is_string($pp_values)) $pp_values = json_encode($pp_values, true);
+		
+		$userData = '';
+		if ($this->context->customer->isLogged()) {
+			$fname = addslashes($this->context->cookie->customer_firstname);
+			$lname = addslashes($this->context->cookie->customer_lastname);
+			
+			$cus = new Customer((int)$this->context->cookie->id_customer);
+			$cusInfo = $cus->getAddresses((int)Configuration::get('PS_LANG_DEFAULT'));
+			$cusInfo = $cusInfo[0];
+			$addr = "{$cusInfo['address1']}<br/>";
+			if (!empty($cusInfo['address2'])) $addr .= "{$cusInfo['address2']}<br/>";
+			if (!empty($cusInfo['city']) || !empty($cusInfo['postcode'])) $addr .= "{$cusInfo['city']} {$cusInfo['postcode']}<br/>";
+			if (!empty($cusInfo['state'])) $addr .= "{$cusInfo['state']}<br/>";
+			if (!empty($cusInfo['country'])) $addr .= "{$cusInfo['country']}";
+			
+			$addr = trim($addr);
+			
+			$userData = ",
+				userData: {
+					email: '{$this->context->cookie->email}',
+					name: '{$fname} {$lname}',
+					firstname: '{$fname}',
+					lastname: '{$lname}',
+					telephone: '{$cusInfo['phone']}',
+					fax: '',
+					address: '" . addslashes($addr) . "'
+				}";
+		}
+		
         return !empty($ppa_productValues) ? "
         <style>
             /*Custom CSS Style*/
@@ -126,17 +162,18 @@ class PitchPrint extends Module {
         
         <script type=\"text/javascript\">
 			ajaxsearch = undefined;
+			
+			PPCLIENT = PPCLIENT || {};
             
 			PPCLIENT.vars = {
 				client: 'ps',
-				uploadUrl: '"._PS_BASE_URL_.__PS_BASE_URI__."modules/pitchprint/uploads/',
+				uploadUrl: '" . _PS_BASE_URL_ . __PS_BASE_URI__ . "modules/pitchprint/uploads/',
 				baseUrl: '" . SERVER_URLPATH ."',
-				appUrl: '". SERVER_URLPATH ."/app/',
-				runtimePath: '". SERVER_URLPATH . "/runtime/',
+				appApiUrl: '" . SERVER_URLPATH . "/api/front/',
 				rscCdn: '" . SERVER_RSCCDN . "',
 				rscBase: '" . SERVER_RSCBASE . "',
 				functions: { },
-
+				
 				cValues: '{$pp_values}',
 				projectId: '{$pp_project_id}',
 				userId: '{$this->context->cookie->id_customer}',
@@ -153,8 +190,8 @@ class PitchPrint extends Module {
 				pageName : '',
 				product: {
 					id: '{$productId}',
-					name: '{$params['product']->name}'
-				}
+					name: '" . addslashes($params['product']->name) . "'
+				}{$userData}
 			}
 			
             //Custom Javascript...
@@ -174,24 +211,24 @@ class PitchPrint extends Module {
             $productId = (int)Tools::getValue('id_product');
             $pp_design_options = unserialize(Configuration::get(PITCHPRINT_P_DESIGNS));
             if (isset($pp_design_options[$productId])) {
-                $this->context->controller->addJS(SERVER_RSCCDN . 'v8/js/pprint.js');
-                $this->context->controller->addJS(SERVER_RSCCDN . 'v8/js/pp.client.js');
+                $this->context->controller->addJS(PP_MIN_CDN_PATH);
+                $this->context->controller->addJS(PP_CLASS_CDN_PATH);
             }
         } else if (substr($this->context->controller->php_self, 0, 5) === 'order' || $this->context->controller->php_self === 'history') {
-            $this->context->controller->addJS(SERVER_RSCCDN . 'v8/js/pp.client.js');
+            $this->context->controller->addJS(PP_CLASS_CDN_PATH);
             return "
 				<script>
 					PPCLIENT.vars = {
 						client: 'ps',
 						uploadUrl: './uploads/',
 						baseUrl: '" . SERVER_URLPATH ."',
-						appUrl: '". SERVER_URLPATH ."/app/',
-						runtimePath: '". SERVER_URLPATH . "/runtime/',
+						appApiUrl: '" . SERVER_URLPATH . "/api/front/',
 						rscCdn: '" . SERVER_RSCCDN . "',
 						rscBase: '" . SERVER_RSCBASE . "',
 						pageName : '{$this->context->controller->php_self}',
 						functions: { }
 					}
+					
 					$(function(){
 						if (typeof PPCLIENT.start === 'function') PPCLIENT.start();
 					});
@@ -213,21 +250,21 @@ class PitchPrint extends Module {
             $indexval = Db::getInstance()->getValue("SELECT `id_customization_field` FROM `"._DB_PREFIX_."customization_field` WHERE `id_product` = ".(int)Tools::getValue('id_product')." AND `type` = 1");
             
             return '<div class="product-tab-content"><div class="panel product-tab"><h3>Assign PitchPrint Design</h3><div class="alert alert-info">
-              You can create your designs at <a target="_blank" href="' . SERVER_URLPATH . '/admin/designs">' . SERVER_URLPATH . '/admin/designs</a> </div><div id="w2p-div">
-              <div style="margin-bottom:10px">
-              <select id="ppa_pick" name="ppa_pick" style="width:300px;" ><option style="color:#aaa" value="0">Loading..</option></select>
-              <input type="hidden" id="ppa_values" name="ppa_values" value="' . $pp_val . '" />
-              <input type="hidden" id="pp_indexVal" name="pp_indexVal" value="' . $indexval . '" />
-              </div>
-                <div class="checkbox" style="margin-bottom:10px">
-                <label for="ppa_pick_upload"> <input type="checkbox" name="ppa_pick_upload" id="ppa_pick_upload" value="">Enable clients upload their files.</label>
-                </div>
-                <div class="checkbox">
-                <label for="ppa_pick_hide_cart_btn"> <input type="checkbox" name="ppa_pick_hide_cart_btn" id="ppa_pick_hide_cart_btn" value="">Required.</label>
-                </div>
-              </div><div id="pp_div_footer" class="panel-footer">
-		<button type="submit" name="submitAddproduct" class="btn btn-default pull-right"><i class="process-icon-save"></i> Save</button>
-		<button type="submit" name="submitAddproductAndStay" class="btn btn-default pull-right"><i class="process-icon-save"></i> Save and stay</button> </div></div></div>';
+				  You can create your designs at <a target="_blank" href="' . SERVER_URLPATH . '/admin/designs">' . SERVER_URLPATH . '/admin/designs</a> </div><div id="w2p-div">
+				  <div style="margin-bottom:10px">
+				  <select id="ppa_pick" name="ppa_pick" style="width:300px;" ><option style="color:#aaa" value="0">Loading..</option></select>
+				  <input type="hidden" id="ppa_values" name="ppa_values" value="' . $pp_val . '" />
+				  <input type="hidden" id="pp_indexVal" name="pp_indexVal" value="' . $indexval . '" />
+				  </div>
+					<div class="checkbox" style="margin-bottom:10px">
+					<label for="ppa_pick_upload"> <input type="checkbox" name="ppa_pick_upload" id="ppa_pick_upload" value="">Enable clients upload their files.</label>
+					</div>
+					<div class="checkbox">
+					<label for="ppa_pick_hide_cart_btn"> <input type="checkbox" name="ppa_pick_hide_cart_btn" id="ppa_pick_hide_cart_btn" value="">Required.</label>
+					</div>
+				  </div><div id="pp_div_footer" class="panel-footer">
+			<button type="submit" name="submitAddproduct" class="btn btn-default pull-right"><i class="process-icon-save"></i> Save</button>
+			<button type="submit" name="submitAddproductAndStay" class="btn btn-default pull-right"><i class="process-icon-save"></i> Save and stay</button> </div></div></div>';
         } else {
           $this->context->controller->errors[] = Tools::displayError('You must first save the product before assigning a design!');
         }
@@ -245,11 +282,7 @@ class PitchPrint extends Module {
             if (!empty($custmz_field)) {
                 $languages = Language::getLanguages(false);
                 foreach ($languages as $lang) {
-                    Db::getInstance()->insert('customization_field_lang', array(
-                        'id_customization_field' => $custmz_field,
-                        'id_lang' => $lang['id_lang'],
-                        'name' => PITCHPRINT_ID_CUSTOMIZATION_NAME
-                    ));
+					Db::getInstance()->execute("INSERT INTO `" . _DB_PREFIX_ . "customization_field_lang` (`id_customization_field`, `id_lang`, `name`) VALUES ('{$custmz_field}', '{$lang['id_lang']}', '" . PITCHPRINT_ID_CUSTOMIZATION_NAME . "') ON DUPLICATE KEY UPDATE `id_lang` = '{$lang['id_lang']}', `name` = '" . PITCHPRINT_ID_CUSTOMIZATION_NAME . "'");
                 }
             }
         }
@@ -259,35 +292,51 @@ class PitchPrint extends Module {
     public function hookDisplayAdminOrder($params) {
         return "
             <script type=\"text/javascript\">
-                ppa_adminPath = 'https://pitchprint.net/admin/';
-                ppa_runtimePath = 'https://pitchprint.net/runtime/';
-                ppa_rscBase = '" . SERVER_RSCBASE . "';
+			
+				PPrintA = PPrintA || { version: '8.2.0' };
+				PPrintA.vars = {
+					rscCdn: '" . SERVER_RSCCDN . "',
+					rscBase: '" . SERVER_RSCBASE . "',
+					runtimePath: '" . SERVER_URLPATH . "/api/runtime/',
+					adminPath: '" . SERVER_URLPATH . "/admin/',
+					credentials: { timestamp: '" . $timestamp . "', apiKey: '" . PITCH_APIKEY . "', signature: '" . $signature . "'}
+				}
+				
+				jQuery(document).ready(function () { 
+					PPrintA.init(); 
+				});
                 
-                jQuery(document).ready(function () { PPrintA.updateOrderDetails(); });
             </script>";
     }
     
     public function hookDisplayBackOfficeHeader($params) {
       $_controller = $this->context->controller;
       if (Validate::isLoadedObject($product = new Product((int)Tools::getValue('id_product')))) {
-        $this->context->controller->addJS(SERVER_RSCCDN . 'v8/js/pp.ps.a.js');
-        //$this->context->controller->addJS('https://pitchprint.net/javascripts/pp.ps.a.js');
-        $pp_design_options = unserialize(Configuration::get(PITCHPRINT_P_DESIGNS));
-        $pp_timestamp = time();
-        $pp_apiKey = Configuration::get(PITCHPRINT_API_KEY);
-        $pp_secretKey = Configuration::get(PITCHPRINT_SECRET_KEY);
-        $pp_signature = (!empty($pp_secretKey) && !empty($pp_apiKey)) ? md5($pp_apiKey . $pp_secretKey . $pp_timestamp) : '';
-        $pp_productid = (int)Tools::getValue('id_product');
-        $pp_options = isset($pp_design_options[$pp_productid]) ? $pp_design_options[$pp_productid] : '0'; 
-        return '
-            <script type="text/javascript">
-                ppa_runtimePath = \'https://pitchprint.net/runtime/\';
-                ppa_productValues = \''.$pp_options.'\';
-                ppa_credentials = {apiKey:\''.$pp_apiKey.'\', signature:\''.$pp_signature.'\', timestamp:\''.$pp_timestamp.'\'};
+		$this->context->controller->addJS(PPA_PS_CDN_PATH);
+		$pp_design_options = unserialize(Configuration::get(PITCHPRINT_P_DESIGNS));
+		$pp_timestamp = time();
+		$pp_apiKey = Configuration::get(PITCHPRINT_API_KEY);
+		$pp_secretKey = Configuration::get(PITCHPRINT_SECRET_KEY);
+		$pp_signature = (!empty($pp_secretKey) && !empty($pp_apiKey)) ? md5($pp_apiKey . $pp_secretKey . $pp_timestamp) : '';
+		$pp_productid = (int)Tools::getValue('id_product');
+		$pp_options = isset($pp_design_options[$pp_productid]) ? $pp_design_options[$pp_productid] : '0';
+		  
+        return "
+            <script type=\"text/javascript\">
+				PPrintA = PPrintA || { version: '8.2.0' };
+				PPrintA.vars = {
+					rscCdn: '" . SERVER_RSCCDN . "',
+					rscBase: '" . SERVER_RSCBASE . "',
+					runtimePath: '" . SERVER_URLPATH . "/api/runtime/',
+					adminPath: '" . SERVER_URLPATH . "/admin/',
+					productValues: \''.$pp_options.'\',
+					credentials: { timestamp: '" . $timestamp . "', apiKey: '" . PITCH_APIKEY . "', signature: '" . $signature . "'}
+				}
+				
                 jQuery(document).ready(function () { PPrintA.fetchDesigns(); });
-            </script>';
+            </script>";
         }else if ($_controller->controller_name === 'AdminOrders') {
-            $this->context->controller->addJS(SERVER_RSCCDN . 'v8/js/pp.ps.a.js');
+            $this->context->controller->addJS(PPA_PS_CDN_PATH);
         }
     }
     
