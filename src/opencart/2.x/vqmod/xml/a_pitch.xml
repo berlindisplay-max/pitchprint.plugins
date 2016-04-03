@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <modification>
-	<id>PITCHPRINT APP V8.0.0</id>
+	<id>PITCHPRINT APP V8.2.1</id>
 	<version>2.0</version>
 	<vqmver>2.x</vqmver>
 	<author>Synergic Laboratories</author>
@@ -62,28 +62,30 @@
         <operation info="Javascripts needed for Web2print execution">
 				<search position="bottom"></search>
 				<add><![CDATA[ 
+					<?php
+						$timestamp = time();
+						$signature = md5($pitchprint_api_value . html_entity_decode($pitchprint_secret_value) . $timestamp);
+					?>
                     <script type="text/javascript">
-		 				var ppa_runtimePath = 'https://pitchprint.net/runtime/';
-						var ppa_adminPath = 'https://pitchprint.net/admin/';
-						var ppa_rscBase = '//s3.amazonaws.com/pitchprint.rsc/';
-						var ppa_rscCdn = '//dta8vnpq1ae34.cloudfront.net/';
-                        var ppa_current_upload_opt = <?php echo $current_upload_opt; ?>;
-                        var ppa_selectedOption = '<?php echo $current_design_id; ?>';
-                        var ppa_product = { id:<?php echo (isset($_GET['product_id']) ? $_GET['product_id'] : '""'); ?>, name:'' };
+						var PPrintA = PPrintA || { version: "8.2.0" };
+						
+						PPrintA.vars = {
+							runtimePath: 'https://pitchprint.net/api/runtime/',
+							adminPath: 'https://pitchprint.net/admin/',
+							rscBase: '//s3.amazonaws.com/pitchprint.rsc/',
+							rscCdn: '//dta8vnpq1ae34.cloudfront.net/',
+							current_upload_opt: <?php echo $current_upload_opt; ?>,
+							selectedOption: '<?php echo $current_design_id; ?>',
+							product: { id:<?php echo (isset($_GET['product_id']) ? $_GET['product_id'] : '""'); ?>, name:'' },
+							version: 2,
+							credentials: {timestamp:'<?php echo $timestamp; ?>', apiKey:'<?php echo $pitchprint_api_value; ?>', signature:'<?php echo $signature; ?>'},
+							callNext: 'fetchDesigns'
+						}
                     </script>
 					<link rel="stylesheet" type="text/css" href="../catalog/view/javascript/jquery/magnific/magnific-popup.css" />
 					<link rel="stylesheet" type="text/css" href="//dta8vnpq1ae34.cloudfront.net/stylesheets/pp_opencart.css" />
 					<script type="text/javascript" src="../catalog/view/javascript/jquery/magnific/jquery.magnific-popup.min.js"></script>
-					<script type="text/javascript" src="//dta8vnpq1ae34.cloudfront.net/v8/js/pp.oc.a.js"></script>
-                    <script type="text/javascript">
-						<?php
-							$timestamp = time();
-							$signature = md5($pitchprint_api_value . html_entity_decode($pitchprint_secret_value) . $timestamp);
-						?>
-						ppa_credentials = {timestamp:'<?php echo $timestamp; ?>', apiKey:'<?php echo $pitchprint_api_value; ?>', signature:'<?php echo $signature; ?>'};
-						PPrintA.fetchDesigns();
-						oc_version = 2;
-					</script>
+					<script type="text/javascript" src="//dta8vnpq1ae34.cloudfront.net/app/js/pp.oc.a.js"></script>
 				]]></add>
 		</operation>
 		<operation >
@@ -136,12 +138,16 @@
 				<search position="bottom"></search>
 				<add><![CDATA[ 
                     <script type="text/javascript">
-		 				var ppa_runtimePath = 'https://pitchprint.net/runtime/';
-						var ppa_adminPath = 'https://pitchprint.net/admin/';
-						var ppa_rscBase = '//s3.amazonaws.com/pitchprint.rsc/';
-						var ppa_rscCdn = '//dta8vnpq1ae34.cloudfront.net/';
+						var PPrintA = PPrintA || { version: "8.2.0" };
+						
+						PPrintA.vars = {
+							runtimePath: 'https://pitchprint.net/api/runtime/',
+							adminPath: 'https://pitchprint.net/admin/',
+							rscBase: '//s3.amazonaws.com/pitchprint.rsc/',
+							rscCdn: '//dta8vnpq1ae34.cloudfront.net/'
+						}
                     </script>
-					<script type="text/javascript" src="//dta8vnpq1ae34.cloudfront.net/v8/js/pp.oc.a.js"></script>
+					<script type="text/javascript" src="//dta8vnpq1ae34.cloudfront.net/app/js/pp.oc.a.js"></script>
 				]]></add>
 		</operation>
 		<operation>
@@ -167,8 +173,8 @@
 		</operation>
 	</file>
 	
-    <file error="log" name="system/library/cart.php">
-		<operation>
+    <file error="log" name="system/library/cart/cart.php,system/library/cart.php">
+		<operation error="skip">
 				<search position="replace"><![CDATA[$this->data[$key] = array(]]></search>
 				<add><![CDATA[
 						//W2P....
@@ -187,6 +193,29 @@
 								}
 							}
 							$this->data[$key] = array(
+								'design_id'		   => $current_design_id,
+								'upload'		   => $current_upload_opt,
+				]]></add>
+		</operation>
+		<operation error="skip">
+				<search position="replace"><![CDATA[$product_data[] = array(]]></search>
+				<add><![CDATA[
+						//W2P....
+							$w2pqry = $this->db->query("SELECT * FROM `" . DB_PREFIX . "option` WHERE `type` = 'web2print'");
+							$web2Print_option = $w2pqry->row['option_id'];
+							$wquery = $this->db->query("SELECT * FROM " . DB_PREFIX . "product_option WHERE option_id=" . $web2Print_option . " and product_id=" . $product_query->row['product_id']);
+							//====================
+							$current_design_id = "0";
+							$current_upload_opt = "0";
+							if ($wquery->num_rows) {
+								$current_option = $wquery->row['value'];
+								$temp_array = explode(":", $current_option);
+								if (count($temp_array) > 1) {
+									$current_design_id = $temp_array[0];
+									$current_upload_opt = $temp_array[1];
+								}
+							}
+							$product_data[] = array(
 								'design_id'		   => $current_design_id,
 								'upload'		   => $current_upload_opt,
 				]]></add>
@@ -261,6 +290,7 @@
 					$GLOBALS['pitchprint']['js_dump'] = "
 						PPCLIENT.vars.userId = '" . $this->session->data['customer_id'] . "';
 						PPCLIENT.vars.apiKey = '" . $this->config->get('pitchprint_api_value') . "';
+						PPCLIENT.vars.langCode = '" . $this->language->get('code') . "';
 						PPCLIENT.loadLang();
 						PPCLIENT.validate(PPCLIENT.fetchUserDesigns);
 					";
@@ -362,12 +392,23 @@
 								$GLOBALS['pitchprint']['address_id'] = $this->customer->getAddressId();
 								$GLOBALS['pitchprint']['customer_id'] = $this->session->data['customer_id'];
 								$this->load->model('account/address');
-								$GLOBALS['pitchprint']['customer_address'] = $this->model_account_address->getAddress($this->customer->getAddressId());
+								$pp_addr = $this->model_account_address->getAddress($this->customer->getAddressId());
+								
+								$GLOBALS['pitchprint']['customer_address'] = "";
+								if (!empty($pp_addr['company'])) $GLOBALS['pitchprint']['customer_address'] .= $pp_addr['company'] . '\n';
+								if (!empty($pp_addr['address_1'])) $GLOBALS['pitchprint']['customer_address'] .= $pp_addr['address_1'] . '\n';
+								if (!empty($pp_addr['address_2'])) $GLOBALS['pitchprint']['customer_address'] .= $pp_addr['address_2'] . '\n';
+								if (!empty($pp_addr['city'])) $GLOBALS['pitchprint']['customer_address'] .= $pp_addr['city'] . ((!empty($pp_addr['postcode'])) ? " {$pp_addr['postcode']}" : '') . '\n';
+								if (!empty($pp_addr['zone'])) $GLOBALS['pitchprint']['customer_address'] .= $pp_addr['zone'] . '\n';
+								if (!empty($pp_addr['country'])) $GLOBALS['pitchprint']['customer_address'] .= $pp_addr['country'];
+								
+								$GLOBALS['pitchprint']['customer_address'] = addslashes($GLOBALS['pitchprint']['customer_address']);
+								
 								$GLOBALS['pitchprint']['customer_data'] = array(
 									'email' => $this->customer->getEmail(),
-									'name' => $this->customer->getFirstName() . ' ' . $this->customer->getLastName(),
-									'firstname' => $this->customer->getFirstName(),
-									'lastname' => $this->customer->getLastName(),
+									'name' => addslashes($this->customer->getFirstName() . ' ' . $this->customer->getLastName()),
+									'firstname' => addslashes($this->customer->getFirstName()),
+									'lastname' => addslashes($this->customer->getLastName()),
 									'telephone' => $this->customer->getTelephone(),
 									'fax' => $this->customer->getFax()
 								);
@@ -434,22 +475,20 @@
 	</file>
 	<file name="catalog/view/theme/*/template/common/footer.tpl,catalog/view/theme/*/template/common/footer_bottom.tpl">
 		<operation error="log">
-				<search position="before"><![CDATA[</footer>]]></search>
+				<search position="before"><![CDATA[</body>]]></search>
 				<add><![CDATA[
 					<!-- Loading PitchPrint Javascripts and Styles -->
 					<link href="catalog/view/javascript/jquery/magnific/magnific-popup.css" rel="stylesheet">
-					<script src="//dta8vnpq1ae34.cloudfront.net/v8/js/pp.client.js" type="text/javascript"></script>
+					<script src="//dta8vnpq1ae34.cloudfront.net/app/js/pp.client.js" type="text/javascript"></script>
 					<?php
 						if (isset($GLOBALS['pitchprint']['file_core'])) {
 							echo '<script src="catalog/view/javascript/jquery/magnific/jquery.magnific-popup.min.js" type="text/javascript"></script> ';
-							echo '<script src="//dta8vnpq1ae34.cloudfront.net/v8/js/pprint.js" type="text/javascript"></script>';
+							echo '<script src="//dta8vnpq1ae34.cloudfront.net/app/js/pprint.js" type="text/javascript"></script>';
 						}
 					?>
 					<script>
 						var PPCLIENT = PPCLIENT || {};
 						<?php
-							if (isset($GLOBALS['pitchprint']['custom_js_value'])) echo $GLOBALS['pitchprint']['custom_js_value'];
-							
 							if (isset($GLOBALS['pitchprint']['product_id'])) {
 								$pp_mode = 'new';
 								$pp_now_value = '';
@@ -474,9 +513,7 @@
 							PPCLIENT.vars = {
 								client: 'oc',
 								uploadUrl: './uploads/',
-								baseUrl: 'https://pitchprint.net',
-								appUrl: 'https://pitchprint.net/app/',
-								runtimePath: 'https://pitchprint.net/runtime/',
+								appApiUrl: 'https://pitchprint.net/api/front/',
 								rscCdn: '//dta8vnpq1ae34.cloudfront.net/',
 								rscBase: '//s3.amazonaws.com/pitchprint.rsc/',
 								ocVersion: 2,
@@ -485,7 +522,7 @@
 									
 								},
 								
-								cValues: '<?php echo $pp_now_value; ?>',
+								cValues: '<?php echo addslashes($pp_now_value); ?>',
 								projectId: '<?php echo $pp_project_id; ?>',
 								userId: '<?php echo isset($GLOBALS['pitchprint']['customer_logged']) ? $GLOBALS['pitchprint']['customer_id'] : 'guest'; ?>',
 								previews: '<?php echo $pp_previews; ?>',
@@ -502,19 +539,29 @@
 									id: '<?php echo $product_id; ?>',
 									name: '<?php echo $GLOBALS['pitchprint']['product_title']; ?>'
 								},
+								<?php if (isset($GLOBALS['pitchprint']['customer_data'])) { ?>
+									userData: {
+										email: '<?php echo $GLOBALS['pitchprint']['customer_data']['email']; ?>',
+										name: '<?php echo $GLOBALS['pitchprint']['customer_data']['name']; ?>',
+										firstname: '<?php echo $GLOBALS['pitchprint']['customer_data']['firstname']; ?>',
+										lastname: '<?php echo $GLOBALS['pitchprint']['customer_data']['lastname']; ?>',
+										telephone: '<?php echo $GLOBALS['pitchprint']['customer_data']['telephone']; ?>',
+										fax: '<?php echo $GLOBALS['pitchprint']['customer_data']['fax']; ?>',
+										address: '<?php echo trim($GLOBALS['pitchprint']['customer_address']); ?>'
+									},
+								<?php } ?>								
 								ppOptionId: '<?php echo $GLOBALS['pitchprint']['pp_product_option_id']; ?>'
 							}
 							
 							$(function(){
 								if (typeof PPCLIENT.init === 'function') PPCLIENT.init();
+								if (typeof PPCLIENT.start === 'function') PPCLIENT.start();
 							});
 						<?php } else { ?>
 							PPCLIENT.vars = {
 								client: 'oc',
 								uploadUrl: './uploads/',
-								baseUrl: 'https://pitchprint.net',
-								appUrl: 'https://pitchprint.net/app/',
-								runtimePath: 'https://pitchprint.net/runtime/',
+								appApiUrl: 'https://pitchprint.net/api/front/',
 								rscCdn: '//dta8vnpq1ae34.cloudfront.net/',
 								rscBase: '//s3.amazonaws.com/pitchprint.rsc/',
 								functions: { },
@@ -527,10 +574,14 @@
 						<?php 
 							if (isset($GLOBALS['pitchprint']['js_dump'])) echo $GLOBALS['pitchprint']['js_dump'];
 						} ?>
+						
+						<?php
+							if (isset($GLOBALS['pitchprint']['custom_js_value'])) echo html_entity_decode($GLOBALS['pitchprint']['custom_js_value']);
+						?>
 					</script>
 					
 					<!-- You can remove this if you want, but it helps propagate our site and will be nice if you could maintain it for us. It is totally invisible to visitors. Thank you. -->
-					<div style="opacity:0; width:0; height:0; postion:fixed; top:0; left:0"><a style="opacity:0; width:0; height:0;" target="_blank" href="http://pitchprint.com">Powered by PitchPrint</a></div>
+					<div style="opacity:0; width:0; height:0; position:fixed; top:0; left:0"><a style="opacity:0; width:0; height:0;" target="_blank" href="http://pitchprint.com">Powered by PitchPrint</a></div>
 				]]></add>
 		</operation>
 	</file>

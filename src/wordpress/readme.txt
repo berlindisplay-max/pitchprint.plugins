@@ -3,7 +3,7 @@ Contributors: flexcubed
 Tags: web2print, pitchprint, wysiwyg, editor, web-to-print, webtoprint, HTML5 WYSIWYG, diy print solution, t-shirt designer
 Requires at least: 3.8
 Tested up to: 4.4
-Stable tag: 8.2.0
+Stable tag: 8.2.1
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -167,6 +167,12 @@ Check out our [website for more details](http://pitchprint.com)
 = 8.2.0 - 01/03/2016 =
 * Upgrade to new and faster API 8.2.0
 * Fixed bug with preview thumbnails not showing
+* Other minor bug fixes
+
+
+= 8.2.1 - 03/04/2016 =
+* Escape slashes for names and addresses with aprostophes
+* Expanded user data to include addresses and full name
 * Other minor bug fixes
 
 

@@ -21,8 +21,8 @@
 	include('system/settings.php');
 
     define('SERVER_URLPATH', 'https://pitchprint.net');
-    define('SERVER_RSCBASE', 'https://s3.amazonaws.com/pitchprint.rsc/');
-	define('SERVER_RSCCDN', 'https://dta8vnpq1ae34.cloudfront.net/');
+    define('SERVER_RSCBASE', '//s3.amazonaws.com/pitchprint.rsc/');
+	define('SERVER_RSCCDN', '//dta8vnpq1ae34.cloudfront.net/');
 
     define('PP_MIN_CDN_PATH', 'https://dta8vnpq1ae34.cloudfront.net/app/js/pprint.js');
     define('PP_CLASS_CDN_PATH', 'https://dta8vnpq1ae34.cloudfront.net/app/js/pp.client.js');
