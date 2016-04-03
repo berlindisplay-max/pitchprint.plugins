@@ -4,10 +4,10 @@
         * Plugin URI: http://www.pitchprint.com
         * Description: Plugin for integrating PitchPrint design app into WooCommerce
         * Author: PitchPrint
-        * Version: 8.0.0
+        * Version: 8.2.1
         * Author URI: http://www.pitchprint.com
 		* Requires at least: 3.8
-		* Tested up to: 4.2
+		* Tested up to: 4.4
 		* 
 		* @package PitchPrint
 		* @category Core
@@ -21,12 +21,12 @@
 	include('system/settings.php');
 
     define('SERVER_URLPATH', 'https://pitchprint.net');
-    define('SERVER_RSCBASE', '//s3.amazonaws.com/pitchprint.rsc/');
-	define('SERVER_RSCCDN', '//dta8vnpq1ae34.cloudfront.net/');
+    define('SERVER_RSCBASE', 'https://s3.amazonaws.com/pitchprint.rsc/');
+	define('SERVER_RSCCDN', 'https://dta8vnpq1ae34.cloudfront.net/');
 
-    define('PP_MIN_CDN_PATH', '//dta8vnpq1ae34.cloudfront.net/v8/js/pprint.js');
-    define('PP_CLASS_CDN_PATH', '//dta8vnpq1ae34.cloudfront.net/v8/js/pp.client.js');
-    define('PPA_WP_CDN_PATH', '//dta8vnpq1ae34.cloudfront.net/v8/js/pp.wp.a.js');
+    define('PP_MIN_CDN_PATH', 'https://dta8vnpq1ae34.cloudfront.net/app/js/pprint.js');
+    define('PP_CLASS_CDN_PATH', 'https://dta8vnpq1ae34.cloudfront.net/app/js/pp.client.js');
+    define('PPA_WP_CDN_PATH', 'https://dta8vnpq1ae34.cloudfront.net/app/js/pp.wp.a.js');
 
 	add_filter('woocommerce_add_cart_item_data', 'pp_add_cart_item_data', 10, 2);
 	add_filter('woocommerce_add_order_item_meta', 'pp_add_order_item_meta', 10, 2);
@@ -102,9 +102,7 @@
             
             PPCLIENT.vars = {
                 client: 'wp',
-                baseUrl: '" . SERVER_URLPATH . "',
-                appUrl: '" . SERVER_URLPATH . "/app/',
-                runtimePath: '" . SERVER_URLPATH . "/runtime/',
+                appApiUrl: '" . SERVER_URLPATH . "/api/front/',
                 rscCdn: '" . SERVER_RSCCDN . "',
                 rscBase: '" . SERVER_RSCBASE . "',
                 pluginRoot: '" . plugins_url('/', __FILE__) . "',
@@ -116,10 +114,10 @@
                 inline: '" . (defined('PITCH_INLINE') ? stripslashes(PITCH_INLINE) : '') . "',
                 apiKey: '" . PITCH_APIKEY . "',
                 langCode: '" . substr(get_bloginfo('language'), 0, 2) . "',
-                userId: '" . get_current_user_id() . "'
+                userId: '" . (get_current_user_id() === 0 ? 'guest' : get_current_user_id()) . "'
             };
             
-            jQuery(document).ready(function () { PPCLIENT.validate(PPCLIENT.fetchUserDesigns); })
+            jQuery(document).ready(function () { PPCLIENT.validate(PPCLIENT.fetchUserProjects); })
         ");
     }
     
@@ -132,9 +130,7 @@
             
             PPCLIENT.vars = {
                 client: 'wp',
-                baseUrl: '" . SERVER_URLPATH . "',
-                appUrl: '" . SERVER_URLPATH . "/app/',
-                runtimePath: '" . SERVER_URLPATH . "/runtime/',
+                appUrl: '" . SERVER_URLPATH . "/api/front/',
                 rscCdn: '" . SERVER_RSCCDN . "',
                 rscBase: '" . SERVER_RSCBASE . "',
                 pluginRoot: '" . plugins_url('/', __FILE__) . "',
@@ -146,7 +142,7 @@
                 inline: '" . (defined('PITCH_INLINE') ? PITCH_INLINE : '') . "',
                 apiKey: '" . PITCH_APIKEY . "',
                 langCode: '" . substr(get_bloginfo('language'), 0, 2) . "',
-                userId: '" . get_current_user_id() . "'
+                userId: '" . (get_current_user_id() === 0 ? 'guest' : get_current_user_id())  . "'
             };
             
             jQuery(document).ready(function () { PPCLIENT.validate(); PPCLIENT.setBtnPref(); })
@@ -187,7 +183,7 @@
         $pp_set_option = explode(':', $pp_set_option);
         if (count($pp_set_option) === 2) $pp_set_option[2] = 0;
 		$pp_project_id = '';
-		$pp_uid = get_current_user_id();
+		$pp_uid = get_current_user_id() === 0 ? 'guest' : get_current_user_id();
 		$pp_now_value = '';
 		$pp_previews = '';
         $pp_upload_ready = false;
@@ -208,15 +204,46 @@
 			}
 		}
 		
+		$userData = '';
+		
+		if (is_user_logged_in()) {
+			global $current_user;
+			get_currentuserinfo();
+			$fname = addslashes(get_user_meta($current_user->ID, 'first_name', true ));
+			$lname = addslashes(get_user_meta($current_user->ID, 'last_name', true ));
+			$address_1 = $woocommerce->customer->get_address();
+			$address_2 = $woocommerce->customer->get_address_2();
+			$city = $woocommerce->customer->get_city();
+			$postcode = $woocommerce->customer->get_postcode();
+			$state = $woocommerce->customer->get_state();
+			$country = WC()->countries->countries[$woocommerce->customer->get_country()];
+			$phone = '';
+			
+			$address = "{$address_1}<br>";
+			if (!empty($address_2)) $address .= "{$address_2}<br>";
+			$address .= "{$city} {$postcode}<br>";
+			if (!empty($state)) $address .= "{$state}<br>";
+			$address .= $country;
+			$address = addslashes($address);
+			
+			$userData = ",
+				userData: {
+					email: '" . $current_user->user_email . "',
+					name: '{$fname} {$lname}',
+					firstname: '{$fname}',
+					lastname: '{$lname}',
+					telephone: '{$phone}',
+					address: '{$address}'.split('<br>').join('\\n')
+				}";
+		}
+			
 		wc_enqueue_js( " 
             PPCLIENT = PPCLIENT || {};
             
             PPCLIENT.vars = {
                 client: 'wp',
                 uploadUrl: '" . plugins_url('uploader/', __FILE__) . "',
-                baseUrl: '" . SERVER_URLPATH . "',
-                appUrl: '" . SERVER_URLPATH . "/app/',
-                runtimePath: '" . SERVER_URLPATH . "/runtime/',
+                appApiUrl: '" . SERVER_URLPATH . "/api/front/',
                 rscCdn: '" . SERVER_RSCCDN . "',
                 rscBase: '" . SERVER_RSCBASE . "',
                 pluginRoot: '" . plugins_url('/', __FILE__) . "',
@@ -241,7 +268,7 @@
                 product: {
                     id: '" . $post->ID . "',
                     name: '" . $post->post_name . "'
-                }
+                }{$userData}
             };
         ");
 				
@@ -249,15 +276,6 @@
 			<input type="hidden" id="_w2p_set_option" name="_w2p_set_option" value="' . $pp_now_value . '" />
 			<div id="pp_main_btn_sec" class="ppc-main-btn-sec" > </div>';
 		
-		if (is_user_logged_in()) {
-			global $current_user;
-			get_currentuserinfo();
-			wc_enqueue_js("PPCLIENT.vars.userData = {
-                                                        email: '" . $current_user->user_email . "',
-                                                        name: '" . $current_user->display_name . "'
-                                                    }; 
-            ");
-		}
 		wc_enqueue_js( " if(typeof PPCLIENT.init === 'function') PPCLIENT.init(); " );
 		
 	}
@@ -271,7 +289,18 @@
 		wp_enqueue_script('pitchprint_admin', PPA_WP_CDN_PATH);
 		$timestamp = time();
 		$signature = md5(PITCH_APIKEY . PITCH_SECRETKEY . $timestamp);
-		wc_enqueue_js("ppa_rscCdn = '" . SERVER_RSCCDN . "'; ppa_rscBase = '" . SERVER_RSCBASE . "'; ppa_runtimePath = '" . SERVER_URLPATH . "/runtime/'; ppa_adminPath = '" . SERVER_URLPATH . "/admin/'; ppa_credentials = {timestamp:'" . $timestamp . "', apiKey:'" . PITCH_APIKEY . "', signature:'" . $signature . "'};");
+		wc_enqueue_js("
+			PPrintA = PPrintA || { version: '8.2.0' };
+			
+			PPrintA.vars = {
+				rscCdn: '" . SERVER_RSCCDN . "',
+				rscBase: '" . SERVER_RSCBASE . "',
+				runtimePath: '" . SERVER_URLPATH . "/api/runtime/',
+				adminPath: '" . SERVER_URLPATH . "/admin/',
+				credentials: { timestamp: '" . $timestamp . "', apiKey: '" . PITCH_APIKEY . "', signature: '" . $signature . "'}
+			}
+			PPrintA.init();
+		");
 	}
 	function ppa_add_tab() {
 		global $post, $woocommerce;
@@ -308,7 +337,7 @@
                 'cbvalue'		=> 'checked',
                 'description' 	=> '&#8678; ' . __("Check this to enable clients to upload their files", 'PitchPrint')
 			) );
-		wc_enqueue_js("ppa_selectedOption = '" . $ppa_selected_option[0] . "';	PPrintA.fetchDesigns();");
+		wc_enqueue_js("PPrintA.vars.selectedOption = '" . $ppa_selected_option[0] . "'; PPrintA.fetchDesigns();");
 	}
 	function ppa_write_panel_save( $post_id ) {
 		$ppa_set_option = $_POST['ppa_values'];
@@ -331,7 +360,7 @@
 			if (!empty($_POST['ppa_inpt_apiKey']) && !empty($_POST['ppa_inpt_secretKey'])) {
 				$jscr = addslashes($_POST['ppa_inpt_jscript']);
 				$jscr = str_replace('\"', '"', $jscr);
-                $str = "<?php define('PITCH_SHOW_EDITOR_STARTUP', '" . ($_POST['ppa_inpt_editor_startup'] == 'on' ? 'true' : 'false') . "'); define('PITCH_RETAIN_PRODUCT_IMAGES', '" . ($_POST['ppa_inpt_retain_images'] == 'on' ? 'true' : 'false') . "'); define('PITCH_INLINE', '{$_POST['ppa_inpt_inline']}');  define('PITCH_APIKEY', '{$_POST['ppa_inpt_apiKey']}');     define('PITCH_SECRETKEY', '{$_POST['ppa_inpt_secretKey']}'); define('PITCH_JSCRIPT', '" . $jscr ."'); ?>";
+                $str = "<?php define('PITCH_SHOW_EDITOR_STARTUP', '" . (isset($_POST['ppa_inpt_editor_startup']) ? ($_POST['ppa_inpt_editor_startup'] == 'on' ? 'true' : 'false') : 'false') . "'); define('PITCH_RETAIN_PRODUCT_IMAGES', '" . (isset($_POST['ppa_inpt_retain_images']) ? ($_POST['ppa_inpt_retain_images'] == 'on' ? 'true' : 'false') : 'false') . "'); define('PITCH_INLINE', '{$_POST['ppa_inpt_inline']}');  define('PITCH_APIKEY', '{$_POST['ppa_inpt_apiKey']}');     define('PITCH_SECRETKEY', '{$_POST['ppa_inpt_secretKey']}'); define('PITCH_JSCRIPT', '" . $jscr ."'); ?>";
 				$handle = fopen(plugin_dir_path(__FILE__)."system/settings.php", "wb");
 				fwrite($handle, $str);
 				fclose($handle);
@@ -339,8 +368,8 @@
 				$PITCH_SECRETKEY = $_POST['ppa_inpt_secretKey'];
 				$PITCH_JSCRIPT = $_POST['ppa_inpt_jscript'];
 				$PITCH_INLINE = $_POST['ppa_inpt_inline'];
-                $$PITCH_RETAIN_PRODUCT_IMAGES = $_POST['ppa_inpt_retain_images'] == 'on' ? 'true' : 'false';
-                $PITCH_SHOW_EDITOR_STARTUP = $_POST['ppa_inpt_editor_startup'] == 'on' ? 'true' : 'false';
+                $$PITCH_RETAIN_PRODUCT_IMAGES = isset($_POST['ppa_inpt_retain_images']) ? ($_POST['ppa_inpt_retain_images'] == 'on' ? 'true' : 'false') : 'false';
+                $PITCH_SHOW_EDITOR_STARTUP = isset($_POST['ppa_inpt_editor_startup']) ? ($_POST['ppa_inpt_editor_startup'] == 'on' ? 'true' : 'false') : 'false';
 			}
 		}
 		if ($issues !== '') {

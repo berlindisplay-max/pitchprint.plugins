@@ -133,11 +133,11 @@ class PitchPrint extends Module {
 			$cus = new Customer((int)$this->context->cookie->id_customer);
 			$cusInfo = $cus->getAddresses((int)Configuration::get('PS_LANG_DEFAULT'));
 			$cusInfo = $cusInfo[0];
-			$addr = "{$cusInfo['address1']}<br/>";
-			if (!empty($cusInfo['address2'])) $addr .= "{$cusInfo['address2']}<br/>";
-			if (!empty($cusInfo['city']) || !empty($cusInfo['postcode'])) $addr .= "{$cusInfo['city']} {$cusInfo['postcode']}<br/>";
-			if (!empty($cusInfo['state'])) $addr .= "{$cusInfo['state']}<br/>";
-			if (!empty($cusInfo['country'])) $addr .= "{$cusInfo['country']}";
+			$addr = "{$cusInfo['address1']}<br>";
+			if (!empty($cusInfo['address2'])) $addr .= "{$cusInfo['address2']}<br>";
+			$addr .= "{$cusInfo['city']} {$cusInfo['postcode']}<br>";
+			if (!empty($cusInfo['state'])) $addr .= "{$cusInfo['state']}<br>";
+			$addr .= "{$cusInfo['country']}";
 			
 			$addr = trim($addr);
 			
@@ -149,7 +149,7 @@ class PitchPrint extends Module {
 					lastname: '{$lname}',
 					telephone: '{$cusInfo['phone']}',
 					fax: '',
-					address: '" . addslashes($addr) . "'
+					address: '" . addslashes($addr) . "'.split('<br>').join('\\n')
 				}";
 		}
 		
