@@ -163,7 +163,9 @@ class PitchPrint extends Module {
         <script type=\"text/javascript\">
 			ajaxsearch = undefined;
 			
-			PPCLIENT = PPCLIENT || {};
+			if (typeof PPCLIENT === 'undefined') {
+				var PPCLIENT = {};
+			}
             
 			PPCLIENT.vars = {
 				client: 'ps',
@@ -195,14 +197,15 @@ class PitchPrint extends Module {
 			}
 			
             //Custom Javascript...
-            {$pp_jscript}
+            
+			{$pp_jscript}
 			
-            $(function(){
+			window.onload = function() {
 				if (typeof PPCLIENT.init === 'function') {
 					PPCLIENT.start();
 					PPCLIENT.init();
 				}
-			});
+			}
         </script>" : "";
     }
     
