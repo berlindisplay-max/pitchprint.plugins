@@ -238,7 +238,7 @@ class PitchPrint extends Module {
 					
 					window.onload = function() {
 						if (typeof PPCLIENT.start === 'function') PPCLIENT.start();
-					});
+					};
 				</script>
 			";
         }
