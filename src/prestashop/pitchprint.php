@@ -221,6 +221,10 @@ class PitchPrint extends Module {
             $this->context->controller->addJS(PP_CLASS_CDN_PATH);
             return "
 				<script>
+					if (typeof PPCLIENT === 'undefined') {
+						var PPCLIENT = {};
+					}
+					
 					PPCLIENT.vars = {
 						client: 'ps',
 						uploadUrl: './uploads/',
@@ -232,7 +236,7 @@ class PitchPrint extends Module {
 						functions: { }
 					}
 					
-					$(function(){
+					window.onload = function() {
 						if (typeof PPCLIENT.start === 'function') PPCLIENT.start();
 					});
 				</script>
