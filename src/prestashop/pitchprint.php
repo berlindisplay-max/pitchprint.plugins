@@ -336,7 +336,7 @@ class PitchPrint extends Module {
 					rscBase: '" . SERVER_RSCBASE . "',
 					runtimePath: '" . SERVER_URLPATH . "/api/runtime/',
 					adminPath: '" . SERVER_URLPATH . "/admin/',
-					productValues: \''.$pp_options.'\',
+					productValues: \"{$pp_options}\",
 					credentials: { timestamp: '" . $timestamp . "', apiKey: '" . PITCH_APIKEY . "', signature: '" . $signature . "'}
 				}
 				
