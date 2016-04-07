@@ -306,7 +306,7 @@ class PitchPrint extends Module {
 					rscBase: '" . SERVER_RSCBASE . "',
 					runtimePath: '" . SERVER_URLPATH . "/api/runtime/',
 					adminPath: '" . SERVER_URLPATH . "/admin/',
-					credentials: { timestamp: '" . $timestamp . "', apiKey: '" . PITCH_APIKEY . "', signature: '" . $signature . "'}
+					credentials: { timestamp: '" . $pp_timestamp . "', apiKey: '" . $pp_apiKey . "', signature: '" . $pp_signature . "'}
 				}
 				
 				jQuery(document).ready(function () { 
@@ -337,7 +337,7 @@ class PitchPrint extends Module {
 					runtimePath: '" . SERVER_URLPATH . "/api/runtime/',
 					adminPath: '" . SERVER_URLPATH . "/admin/',
 					productValues: \"{$pp_options}\",
-					credentials: { timestamp: '" . $timestamp . "', apiKey: '" . PITCH_APIKEY . "', signature: '" . $signature . "'}
+					credentials: { timestamp: '" . $pp_timestamp . "', apiKey: '" . $pp_apiKey . "', signature: '" . $pp_signature . "'}
 				}
 				
                 jQuery(document).ready(function () { PPrintA.fetchDesigns(); });
